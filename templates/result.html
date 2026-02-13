@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Processing Result</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='result_style.css') }}">
+</head>
+<body>
+<div class="container">
+    <h1>📊 Processing Result</h1>
+    <div class="result-content">
+        <div class="cleaning-report" id="cleaningReport" style="display:none;">
+            <h3>🧹 Data Cleaning Report</h3>
+            <div class="report-grid">
+                <div class="report-item">
+                    <label>Original Rows:</label>
+                    <p id="originalRows">-</p>
+                </div>
+                <div class="report-item">
+                    <label>Cleaned Rows:</label>
+                    <p id="cleanedRows">-</p>
+                </div>
+                <div class="report-item">
+                    <label>Rows Removed:</label>
+                    <p id="rowsRemoved">-</p>
+                </div>
+                <div class="report-item">
+                    <label>Missing Values Fixed:</label>
+                    <p id="missingFixed">-</p>
+                </div>
+                <div class="report-item">
+                    <label>Duplicates Removed:</label>
+                    <p id="duplicatesRemoved">-</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="result-grid">
+            <div class="result-item">
+                <label>Filename:</label>
+                <p id="filename">-</p>
+            </div>
+            <div class="result-item">
+                <label>Total Rows:</label>
+                <p id="rows">-</p>
+            </div>
+            <div class="result-item">
+                <label>Total Columns:</label>
+                <p id="columns">-</p>
+            </div>
+            <div class="result-item">
+                <label>Column Names:</label>
+                <p id="columnNames">-</p>
+            </div>
+        </div>
+        <div class="json-section">
+            <h3>Full Data (JSON):</h3>
+            <pre id="jsonOutput"></pre>
+        </div>
+    </div>
+    
+    <div class="button-group">
+        <button onclick="viewDashboard()" class="btn btn-dashboard">📈 View Dashboard</button>
+        <div class="download-group">
+            <h3>Export Data:</h3>
+            <button onclick="downloadCleanedCSV()" class="btn btn-csv">📥 CSV</button>
+            <button onclick="downloadCleanedJSON()" class="btn btn-json">📥 JSON</button>
+            <button onclick="downloadCleanedXLSX()" class="btn btn-xlsx">📥 Excel</button>
+        </div>
+        <div class="download-group">
+            <h3>Export Reports:</h3>
+            <button onclick="downloadReportPDF()" class="btn btn-pdf">📄 PDF Report</button>
+            <button onclick="downloadReportPPTX()" class="btn btn-pptx">📊 PowerPoint</button>
+            <button onclick="downloadReportDOCX()" class="btn btn-docx">📝 Word Document</button>
+            <button onclick="downloadAllReports()" class="btn btn-all">🎯 Generate All</button>
+        </div>
+        <button onclick="goBack()" class="btn btn-back">← Back to Upload</button>
+    </div>
+</div>
+
+<script>
+    let currentData = {};
+
+    function loadResult() {
+        const result = sessionStorage.getItem('processingResult');
+        if (result) {
+            currentData = JSON.parse(result);
+            document.getElementById('filename').textContent = currentData.filename || '-';
+            document.getElementById('rows').textContent = currentData.rows || '-';
+            document.getElementById('columns').textContent = currentData.columns || '-';
+            document.getElementById('columnNames').textContent = (currentData.columns_names || []).join(', ') || '-';
+            document.getElementById('jsonOutput').textContent = JSON.stringify(currentData, null, 2);
+            
+            // Display cleaning report if available
+            if (currentData.cleaning_report) {
+                displayCleaningReport(currentData.cleaning_report);
+            }
+        }
+    }
+
+    function displayCleaningReport(report) {
+        const cleaningDiv = document.getElementById('cleaningReport');
+        cleaningDiv.style.display = 'block';
+        
+        document.getElementById('originalRows').textContent = report.original.rows;
+        document.getElementById('cleanedRows').textContent = report.cleaned.rows;
+        document.getElementById('rowsRemoved').textContent = report.cleaned.rows_removed;
+        document.getElementById('missingFixed').textContent = report.cleaned.missing_values_filled;
+        document.getElementById('duplicatesRemoved').textContent = report.cleaned.duplicate_rows_removed;
+    }
+
+    async function downloadCleanedCSV() {
+        await downloadCleaned('csv');
+    }
+
+    async function downloadCleanedJSON() {
+        await downloadCleaned('json');
+    }
+
+    async function downloadCleanedXLSX() {
+        await downloadCleaned('xlsx');
+    }
+
+    async function downloadCleaned(format) {
+        try {
+            const endpoint = `/api/export/cleaned-${format}`;
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cleaned_data: JSON.stringify(currentData),
+                    filename: currentData.filename || 'data'
+                })
+            });
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `cleaned_data_${new Date().getTime()}.${format}`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+            } else {
+                const error = await response.json();
+                alert('Error: ' + (error.error || 'Download failed'));
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    async function downloadPDF() {
+        try {
+            const response = await fetch('/api/report/pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(currentData)
+            });
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `report_${new Date().getTime()}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+            } else {
+                const error = await response.json();
+                alert('Error: ' + error.error);
+            }
+        } catch (error) {
+            alert('Error downloading PDF: ' + error.message);
+        }
+    }
+
+    async function downloadReportPDF() {
+        try {
+            const response = await fetch('/api/export/report-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cleaned_data: JSON.stringify(currentData),
+                    statistics: currentData.analysis || {},
+                    filename: currentData.filename || 'data'
+                })
+            });
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = blob.name || `report_${new Date().getTime()}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                alert('✅ PDF Report downloaded successfully!');
+            } else {
+                const error = await response.json();
+                alert('Error: ' + (error.error || 'Download failed'));
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    async function downloadReportPPTX() {
+        try {
+            const response = await fetch('/api/export/report-pptx', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cleaned_data: JSON.stringify(currentData),
+                    statistics: currentData.analysis || {},
+                    filename: currentData.filename || 'data'
+                })
+            });
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = blob.name || `report_${new Date().getTime()}.pptx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                alert('✅ PowerPoint Report downloaded successfully!');
+            } else {
+                const error = await response.json();
+                alert('Error: ' + (error.error || 'Download failed'));
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    async function downloadReportDOCX() {
+        try {
+            const response = await fetch('/api/export/report-docx', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cleaned_data: JSON.stringify(currentData),
+                    statistics: currentData.analysis || {},
+                    filename: currentData.filename || 'data'
+                })
+            });
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = blob.name || `report_${new Date().getTime()}.docx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                alert('✅ Word Document downloaded successfully!');
+            } else {
+                const error = await response.json();
+                alert('Error: ' + (error.error || 'Download failed'));
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    async function downloadAllReports() {
+        try {
+            const response = await fetch('/api/export/report-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cleaned_data: JSON.stringify(currentData),
+                    statistics: currentData.analysis || {},
+                    filename: currentData.filename || 'data'
+                })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                let message = '✅ All reports generated:\n\n';
+                message += `CSV: ${result.csv ? '✓' : '✗'}\n`;
+                message += `Excel: ${result.xlsx ? '✓' : '✗'}\n`;
+                message += `JSON: ${result.json ? '✓' : '✗'}\n`;
+                message += `PDF: ${result.pdf ? '✓' : '✗'}\n`;
+                message += `PowerPoint: ${result.pptx ? '✓' : '✗'}\n`;
+                message += `Word: ${result.docx ? '✓' : '✗'}\n`;
+                
+                if (result.errors && result.errors.length > 0) {
+                    message += '\nErrors:\n' + result.errors.join('\n');
+                }
+                
+                alert(message);
+            } else {
+                const error = await response.json();
+                alert('Error: ' + (error.error || 'Generation failed'));
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    function viewDashboard() {
+        window.location.href = '/dashboard';
+    }
+
+    function goBack() {
+        sessionStorage.removeItem('processingResult');
+        window.location.href = '/';
+    }
+
+    loadResult();
+</script>
+</body>
+</html>

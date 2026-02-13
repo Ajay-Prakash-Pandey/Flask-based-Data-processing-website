@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Analytics Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='dashboard_style.css') }}">
+</head>
+<body>
+<div class="header">
+    <h1>📊 Data Analytics Dashboard</h1>
+    <button onclick="goBack()" class="back-btn">← Back</button>
+</div>
+
+<div class="container">
+    <div class="stats-grid" id="statsGrid">
+        <!-- Stats will be populated here -->
+    </div>
+    
+    <div class="charts-section">
+        <div class="chart-card">
+            <h3>Numeric Columns Statistics</h3>
+            <div id="statsTable" class="stats-table"></div>
+        </div>
+    </div>
+    
+    <div class="charts-section">
+        <div class="chart-card">
+            <h3>Data Distribution</h3>
+            <div class="chart-controls">
+                <select id="columnSelect" onchange="generateDistributionChart()">
+                    <option value="">Select a column...</option>
+                </select>
+            </div>
+            <div id="distributionChart" class="chart-container">
+                <p>Select a column to view distribution</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="charts-section">
+        <div class="chart-card">
+            <h3>Correlation Heatmap</h3>
+            <button onclick="generateCorrelationChart()" class="chart-btn">Generate Heatmap</button>
+            <div id="correlationChart" class="chart-container">
+                <p>Click to generate correlation heatmap</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentData = {};
+    let dataframe = null;
+    
+    function loadDashboard() {
+        const data = sessionStorage.getItem('processingResult');
+        const dfJson = sessionStorage.getItem('dataframeJson');
+        
+        if (!data) {
+            document.body.innerHTML = '<div class="error">No data to display. <a href="/">Upload a file first</a></div>';
+            return;
+        }
+        
+        currentData = JSON.parse(data);
+        if (dfJson) {
+            dataframe = JSON.parse(dfJson);
+        }
+        
+        displayStats();
+        populateColumnSelect();
+    }
+    
+    function displayStats() {
+        const statsHtml = `
+            <div class="stat-item">
+                <h4>Total Rows</h4>
+                <p class="stat-value">${currentData.rows || 0}</p>
+            </div>
+            <div class="stat-item">
+                <h4>Total Columns</h4>
+                <p class="stat-value">${currentData.columns || 0}</p>
+            </div>
+            <div class="stat-item">
+                <h4>Data Types</h4>
+                <p class="stat-value">${currentData.numeric_columns ? currentData.numeric_columns.length : 0} Numeric</p>
+            </div>
+            <div class="stat-item">
+                <h4>Missing Values</h4>
+                <p class="stat-value">${currentData.missing_count || 0}</p>
+            </div>
+            <div class="stat-item">
+                <h4>Duplicates</h4>
+                <p class="stat-value">${currentData.duplicate_rows || 0}</p>
+            </div>
+            <div class="stat-item">
+                <h4>Memory Usage</h4>
+                <p class="stat-value">${currentData.memory_usage_mb || 0} MB</p>
+            </div>
+        `;
+        
+        document.getElementById('statsGrid').innerHTML = statsHtml;
+        
+        // Display numeric stats table
+        if (currentData.numeric_stats) {
+            let tableHtml = '<table><tr><th>Column</th><th>Mean</th><th>Median</th><th>Std Dev</th><th>Min</th><th>Max</th></tr>';
+            
+            for (const [col, stats] of Object.entries(currentData.numeric_stats)) {
+                tableHtml += `
+                    <tr>
+                        <td>${col}</td>
+                        <td>${stats.mean.toFixed(2)}</td>
+                        <td>${stats.median.toFixed(2)}</td>
+                        <td>${stats.std.toFixed(2)}</td>
+                        <td>${stats.min.toFixed(2)}</td>
+                        <td>${stats.max.toFixed(2)}</td>
+                    </tr>
+                `;
+            }
+            
+            tableHtml += '</table>';
+            document.getElementById('statsTable').innerHTML = tableHtml;
+        }
+    }
+    
+    function populateColumnSelect() {
+        const columns = currentData.columns_names || [];
+        const select = document.getElementById('columnSelect');
+        
+        columns.forEach(col => {
+            const option = document.createElement('option');
+            option.value = col;
+            option.textContent = col;
+            select.appendChild(option);
+        });
+    }
+    
+    function generateDistributionChart() {
+        const column = document.getElementById('columnSelect').value;
+        if (!column) return;
+        
+        const chartDiv = document.getElementById('distributionChart');
+        chartDiv.innerHTML = '<p>Generating chart...</p>';
+        
+        // Simple chart generation (can be enhanced with actual API call)
+        chartDiv.innerHTML = `
+            <div class="chart-placeholder">
+                <p>Distribution chart for: <strong>${column}</strong></p>
+                <p style="font-size: 12px; color: #999;">Chart generation requires full dataframe</p>
+            </div>
+        `;
+    }
+    
+    function generateCorrelationChart() {
+        const chartDiv = document.getElementById('correlationChart');
+        chartDiv.innerHTML = '<p>Generating correlation heatmap...</p>';
+        
+        setTimeout(() => {
+            chartDiv.innerHTML = `
+                <div class="chart-placeholder">
+                    <p>Correlation heatmap</p>
+                    <p style="font-size: 12px; color: #999;">Shows relationships between numeric columns</p>
+                </div>
+            `;
+        }, 500);
+    }
+    
+    function goBack() {
+        window.location.href = '/result';
+    }
+    
+    loadDashboard();
+</script>
+</body>
+</html>
